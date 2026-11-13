@@ -8,7 +8,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { CarePulseShell } from "@/components/carepulse-shell";
-import { useCarePulseSession } from "@/components/carepulse-session";
+import { useCarePulseSession } from "@/lib/carepulse-session-context";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/clinic")({

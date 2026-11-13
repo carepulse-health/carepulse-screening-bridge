@@ -32,7 +32,7 @@ import {
 import nurseImage from "@/assets/carepulse-nurse.jpg";
 import { emergencyGuidance, screeningQuestions, screeningStep } from "@/lib/screening";
 import { CarePulseShell, PriorityLegend } from "./carepulse-shell";
-import { useCarePulseSession, type ScreeningThread } from "./carepulse-session";
+import { useCarePulseSession, type ScreeningThread } from "@/lib/carepulse-session-context";
 
 const intro =
   "Hello, Jamie. I’m here to help you take the next step with your health. What is your main health concern?";

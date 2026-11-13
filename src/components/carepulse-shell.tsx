@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { useCarePulseSession } from "./carepulse-session";
+import { useCarePulseSession } from "@/lib/carepulse-session-context";
 
 export function CarePulseShell({
   children,

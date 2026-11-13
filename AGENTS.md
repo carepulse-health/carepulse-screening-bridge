@@ -34,6 +34,7 @@ use the editor.
 ## CarePulse architecture
 
 - Keep unsaved conversation data in the root session provider and conversation IDs in TanStack page URLs; no browser storage is used because chats must not persist.
+- Define session context and its consumer hook in a non-component module, separate from the refreshable provider, so hot updates cannot split provider and consumer context identities.
 - Use AI Elements for transcript, markdown messages, and the composer so the future streaming integration can share the same UI.
 - Until an existing data connection and clinician-approved protocol are verified, use a deterministic sample screening sequence, explicit emergency guidance, and human-review outcomes; do not infer medical priorities or send real notifications.
 - Reuse the connected project's generated data clients and existing schema when available; never provision a replacement project for the existing CarePulse data.
