@@ -36,9 +36,7 @@ function ClinicReview() {
   const [reviewed, setReviewed] = useState<string[]>([]);
   const [escalated, setEscalated] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const records = threads
-    .filter((thread) => thread.outcome)
-    .sort((a, b) => Number(b.outcome === "Emergency") - Number(a.outcome === "Emergency"));
+  const records = threads.filter((thread) => thread.outcome);
   const record = records.find((item) => item.id === selected);
   return (
     <CarePulseShell clinic>
@@ -60,12 +58,12 @@ function ClinicReview() {
         <div>
           <ClipboardList />
           <strong>{records.length}</strong>
-          <span>Submissions</span>
+          <span>Local sample screenings</span>
         </div>
         <div>
           <TriangleAlert />
-          <strong>{records.filter((item) => item.outcome === "Emergency").length}</strong>
-          <span>Emergency priority</span>
+          <strong>{records.filter((item) => item.requestedHealthcareProfessional).length}</strong>
+          <span>Professional requested</span>
         </div>
         <div>
           <CheckCircle2 />
@@ -75,8 +73,8 @@ function ClinicReview() {
       </div>
       <section className="clinic-records">
         <div className="records-heading">
-          <h2>Screening queue</h2>
-          <span>Emergency submissions first</span>
+          <h2>Local sample screenings</h2>
+          <span>Not the clinic’s received-submission queue</span>
         </div>
         {!records.length ? (
           <div className="clinic-empty">
@@ -97,13 +95,13 @@ function ClinicReview() {
                 <strong>Jamie Davis</strong>
                 <p>{item.title}</p>
               </div>
-              <span
-                className={`priority-badge ${item.outcome === "Emergency" ? "emergency" : "urgent"}`}
-              >
-                {escalated.includes(item.id) ? "Escalated" : item.outcome}
+              <span className="small-tag">
+                {item.requestedHealthcareProfessional
+                  ? "Professional requested"
+                  : "No priority assigned"}
               </span>
               <span className="review-status">
-                {reviewed.includes(item.id) ? "Reviewed" : "Awaiting review"}
+                {item.submissionState === "failed" ? "Not received by clinic" : "Local sample only"}
               </span>
               <Button variant="outline" onClick={() => setSelected(item.id)}>
                 Review <ChevronRight />
@@ -115,8 +113,9 @@ function ClinicReview() {
       <div className="clinical-caution">
         <ShieldCheck size={20} />
         <p>
-          No patient records are connected. Review actions affect this sample session only and do
-          not contact clinic staff.
+          These are unsaved sample screenings, not received clinic records. The current clinic
+          settings require a clinical priority, so unclassified submissions cannot be saved. Review
+          actions below are local only.
         </p>
       </div>
       {record && (
@@ -128,13 +127,20 @@ function ClinicReview() {
             </Button>
           </div>
           <p>
-            <strong>Priority:</strong> {record.outcome}
+            <strong>Priority:</strong> Not assigned
           </p>
           <p>
             <strong>Reason:</strong>{" "}
-            {record.outcome === "Emergency"
+            {record.outcome === "Emergency guidance"
               ? "Patient requested immediate emergency guidance."
               : "Screening protocol is not clinically validated. Human review is required."}
+          </p>
+          <p>
+            <strong>Healthcare professional requested:</strong>{" "}
+            {record.requestedHealthcareProfessional ? "Yes" : "No"}
+          </p>
+          <p>
+            <strong>Submission:</strong> Not received by clinic
           </p>
           <h3>Screening responses</h3>
           {record.answers.length ? (
@@ -151,7 +157,7 @@ function ClinicReview() {
               disabled={reviewed.includes(record.id)}
               onClick={() => setReviewed((previous) => [...previous, record.id])}
             >
-              <CheckCircle2 /> Mark reviewed
+              <CheckCircle2 /> Mark sample reviewed
             </Button>
             <Button
               variant="outline"

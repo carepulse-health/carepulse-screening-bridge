@@ -4,7 +4,7 @@ import { screeningQuestions, screeningStep } from "../lib/screening";
 describe("CarePulse screening safety", () => {
   it("stops questions immediately when emergency help is requested", () => {
     expect(screeningStep(1, true)).toEqual({
-      outcome: "Emergency",
+      outcome: "Emergency guidance",
       question: null,
       finished: true,
     });

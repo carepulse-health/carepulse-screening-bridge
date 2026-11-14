@@ -31,6 +31,11 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import nurseImage from "@/assets/carepulse-nurse.jpg";
 import { emergencyGuidance, screeningQuestions, screeningStep } from "@/lib/screening";
+import {
+  completionSubmission,
+  submissionUnavailable,
+  wantsHealthcareProfessional,
+} from "@/lib/screening-submission";
 import { CarePulseShell, PriorityLegend } from "./carepulse-shell";
 import { useCarePulseSession, type ScreeningThread } from "@/lib/carepulse-session-context";
 
@@ -54,6 +59,21 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
 
   function submit(text: string) {
     if (!text.trim() || thread?.outcome) return;
+    if (thread?.answers.length === 9 && wantsHealthcareProfessional(text) === null) {
+      updateThread({
+        ...thread,
+        messages: [
+          ...thread.messages,
+          textMessage("user", text.trim()),
+          textMessage(
+            "assistant",
+            "Would you like to speak with a healthcare professional? Please choose Yes or No.",
+          ),
+        ],
+      });
+      setInput("");
+      return;
+    }
     const id = threadId ?? crypto.randomUUID();
     const current: ScreeningThread = thread ?? {
       id,
@@ -64,8 +84,11 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
     };
     const answers = [...current.answers, text.trim()];
     const step = screeningStep(answers.length, false);
+    const completion = completionSubmission(answers);
     const response = step.finished
-      ? "Thank you for sharing this information. Your screening needs human clinical review. The screening rules have not yet been clinically validated, so I cannot assign Routine or Urgent priority. This is a sample result only; it has not been sent to a clinic. If you feel seriously unwell, seek urgent medical attention now."
+      ? completion.requested
+        ? `Thank you. You requested a healthcare professional. ${submissionUnavailable} No clinical priority has been assigned.`
+        : "Thank you for sharing. You have not requested a healthcare professional, so this screening has not been submitted. No clinical priority has been assigned. If you feel seriously unwell, seek immediate medical attention."
       : `${answers.length === 1 ? "Thank you for sharing, Jamie. " : ""}${step.question}`;
     updateThread({
       ...current,
@@ -76,6 +99,8 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
         textMessage("assistant", response),
       ],
       outcome: step.outcome,
+      requestedHealthcareProfessional: completion.requested,
+      submissionState: completion.state,
     });
     setInput("");
     if (!threadId) void navigate({ to: "/chat/$threadId", params: { threadId: id } });
@@ -93,7 +118,7 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
     };
     updateThread({
       ...current,
-      outcome: "Emergency",
+      outcome: "Emergency guidance",
       messages: [...current.messages, textMessage("assistant", emergencyGuidance)],
     });
     if (!threadId) void navigate({ to: "/chat/$threadId", params: { threadId: id } });
@@ -212,20 +237,37 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
           )}
           {complete && (
             <div
-              className={`outcome-banner ${thread?.outcome === "Emergency" ? "emergency-outcome" : "review-outcome"}`}
+              className={`outcome-banner ${thread?.outcome === "Emergency guidance" ? "emergency-outcome" : "review-outcome"}`}
+              role="status"
             >
               <Info size={18} />
               <div>
                 <strong>
-                  {thread?.outcome === "Emergency"
+                  {thread?.outcome === "Emergency guidance"
                     ? "Seek emergency help now"
-                    : "Screening complete · Needs clinical review"}
+                    : thread?.submissionState === "failed"
+                      ? "Not submitted · Your clinic has not received it"
+                      : "Screening complete · Not submitted"}
                 </strong>
-                <p>Sample only. No clinic alert has been sent.</p>
+                <p>
+                  {thread?.requestedHealthcareProfessional
+                    ? "Healthcare professional requested. Please contact your clinic directly."
+                    : "No clinical priority assigned. No clinic notification sent."}
+                </p>
               </div>
             </div>
           )}
           <div className="composer-area">
+            {count === 9 && !complete && (
+              <div className="concern-options">
+                <Button variant="outline" onClick={() => submit("Yes")}>
+                  Yes
+                </Button>
+                <Button variant="outline" onClick={() => submit("No")}>
+                  No
+                </Button>
+              </div>
+            )}
             <PromptInput onSubmit={({ text }) => submit(text)}>
               <PromptInputTextarea
                 ref={inputRef}
@@ -388,8 +430,9 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
               patients.
             </p>
             <p>
-              Chats are held only in this session and disappear on reload. Clinic records and alerts
-              are not connected yet.
+              Chats are held only in this session and disappear on reload. This screening cannot be
+              submitted until the clinic can accept unclassified results. No clinic notifications
+              are sent by this sample workflow.
             </p>
             <Button onClick={() => setShowSafety(false)}>
               <CheckCircle2 /> Understood

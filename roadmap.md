@@ -2,6 +2,7 @@
 - [x] Build sample-only patient screening and session conversation navigation.
 - [x] Build sample clinic review and escalation view.
 - [x] Verify screening safety rules and mobile layout.
-- [ ] Save YES completion requests with truthful submission status and database-backed clinic review.
+- [x] Record YES requests locally, clarify ambiguous answers, and show truthful failure/non-submission states without assigning medical priority.
+- [ ] Save YES requests and show received screenings in the clinic dashboard. Blocked: minimal migration to support unclassified results was declined; existing priority field accepts only mild/moderate/emergency.
 - [ ] Connect AI screening. Blocked: clinically approved warning-sign protocol.
 - [ ] Enable production staff alerts and voice processing. Blocked: existing connection, verified staff recipients and clinical approval.

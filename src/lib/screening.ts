@@ -11,10 +11,10 @@ export const screeningQuestions = [
   "Would you like to speak with a healthcare professional?",
 ] as const;
 
-export type ScreeningOutcome = "Emergency" | "Needs review";
+export type ScreeningOutcome = "Emergency guidance" | "Needs review";
 export function screeningStep(answerCount: number, emergencyRequested: boolean) {
   if (emergencyRequested)
-    return { outcome: "Emergency" as ScreeningOutcome, question: null, finished: true };
+    return { outcome: "Emergency guidance" as ScreeningOutcome, question: null, finished: true };
   if (answerCount >= screeningQuestions.length)
     return { outcome: "Needs review" as ScreeningOutcome, question: null, finished: true };
   return { outcome: null, question: screeningQuestions[answerCount], finished: false };

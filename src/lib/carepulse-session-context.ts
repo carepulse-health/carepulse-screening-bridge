@@ -6,7 +6,9 @@ export type ScreeningThread = {
   title: string;
   messages: UIMessage[];
   answers: string[];
-  outcome: "Emergency" | "Needs review" | null;
+  outcome: "Emergency guidance" | "Needs review" | null;
+  requestedHealthcareProfessional?: boolean;
+  submissionState?: "not_requested" | "submitting" | "submitted" | "failed";
 };
 
 type Session = {

@@ -38,3 +38,4 @@ use the editor.
 - Use AI Elements for transcript, markdown messages, and the composer so the future streaming integration can share the same UI.
 - Until an existing data connection and clinician-approved protocol are verified, use a deterministic sample screening sequence, explicit emergency guidance, and human-review outcomes; do not infer medical priorities or send real notifications.
 - Reuse the connected project's generated data clients and existing schema when available; never provision a replacement project for the existing CarePulse data.
+- Never write unvalidated screening completions using legacy clinical priority values; if the database cannot accept an unclassified result, show a failed-submission state and keep local samples distinct from received clinic records.
