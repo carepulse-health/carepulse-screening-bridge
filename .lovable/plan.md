@@ -1,164 +1,112 @@
-# CarePulse secure screening completion
+# CarePulse screening submission and clinical review
 
-## Changes for your approval
+## Goal and KPI
 
-Keep the existing interface, tables, and features. Save completed screenings as **Unclassified** with **pending review**, never as a medical urgency decision. Save the healthcare-professional request and all answers in existing fields.
+**Goal:** Patients get their symptoms reviewed by a qualified clinician at their clinic.
 
-- Only signed-in patients can submit their own screenings, verified through `patients.auth_user_id`.
-- Derive patient and clinic IDs inside the database; the browser supplies neither.
-- No anonymous access, public policies, service-role browser keys, or additional tables.
-- Preserve the existing staff-only read and review policies. Patients do not gain access to other patients’ records.
-- Confirm success only from the database response. Separate saved-record confirmation from confirmation that a clinic dashboard notification was created.
-- Preserve immediate emergency guidance without assigning an Emergency priority.
+**KPI:** Number of distinct patient screenings marked reviewed by clinic staff each week. A screening qualifies only after an authorised clinician completes and saves its review; viewing, reception handling, and sample actions do not count.
 
-## Exact proposed database changes
+This is a proposal only. Do not execute migrations, create test records, or change application behaviour until approval. Keep the existing interface, URLs, screening questions, emergency guidance, tables, and unrelated features. No duplicate tables or database functions.
 
-The two existing allowed-value constraints gain one value each; legacy values remain accepted. A narrow authenticated submission function validates ownership and returns only the submitted record’s reference and status. It does not grant patients unrestricted writes. Staff access continues through the existing clinic-membership policies.
+## Verified starting point
 
-```sql
-ALTER TABLE public.triage_records
-  DROP CONSTRAINT triage_records_priority_level_check;
-ALTER TABLE public.triage_records
-  ADD CONSTRAINT triage_records_priority_level_check
-  CHECK (priority_level IN ('mild', 'moderate', 'emergency', 'Unclassified'));
-ALTER TABLE public.triage_records
-  DROP CONSTRAINT triage_records_review_status_check;
-ALTER TABLE public.triage_records
-  ADD CONSTRAINT triage_records_review_status_check
-  CHECK (review_status IN ('pending', 'reviewed', 'pending review'));
+- The live database already contains `submit_carepulse_screening(uuid, jsonb)`, the notification trigger, and review-protection trigger. Reuse them; do not replay the older saved SQL proposal.
+- The RPC validates ten strings, derives patient and clinic IDs, saves Unclassified / pending review, and requires a clinic notification before returning success.
+- The chatbot does not call it. Clinic Review and its review actions operate only on temporary sample data.
+- `reviewed_by` exists; `reviewed_at` does not. Current review rules permit a null reviewer and all three staff roles.
+- Patients can currently self-register against a clinic and update their clinic association. Deriving a clinic ID from this row is not sufficient until those write paths are secured.
+- The audit found zero triage records, triage notifications, and successful triage runs. These checks do not establish a working authenticated end-to-end flow.
 
--- These grants support the existing staff-only policies; they do not
--- grant patients read or review access. No anonymous privileges are added.
-GRANT SELECT, UPDATE ON public.triage_records TO authenticated;
+## Step 1 — Secure patient-to-clinic association
 
-CREATE OR REPLACE FUNCTION public.submit_carepulse_screening(
-  _submission_id uuid, _answers jsonb
-) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-DECLARE
-  v_patient_id uuid;
-  v_clinic_id uuid;
-  v_patient_count integer;
-  v_request boolean;
-  v_symptoms text;
-  v_record public.triage_records%ROWTYPE;
-  v_notification_created boolean;
-BEGIN
-  IF auth.uid() IS NULL THEN
-    RAISE EXCEPTION 'Sign in to submit screening';
-  END IF;
-  IF _submission_id IS NULL OR jsonb_typeof(_answers) IS DISTINCT FROM 'array' THEN
-    RAISE EXCEPTION 'A completed screening is required';
-  END IF;
-  IF jsonb_array_length(_answers) <> 10 THEN
-    RAISE EXCEPTION 'Ten screening answers are required';
-  END IF;
-  IF EXISTS (
-    SELECT 1 FROM jsonb_array_elements(_answers) item
-    WHERE jsonb_typeof(item) <> 'string'
-      OR length(trim(item #>> '{}')) = 0
-      OR length(item #>> '{}') > 2000
-  ) THEN RAISE EXCEPTION 'Invalid screening answer'; END IF;
-  IF lower(trim(_answers->>9)) NOT IN
-    ('yes', 'yes please', 'yes, please', 'no', 'no thanks', 'no, thanks') THEN
-    RAISE EXCEPTION 'Please answer Yes or No to the professional request';
-  END IF;
-  v_request := lower(trim(_answers->>9)) IN ('yes', 'yes please', 'yes, please');
-  SELECT count(*) INTO v_patient_count FROM public.patients
-    WHERE auth_user_id = auth.uid();
-  IF v_patient_count <> 1 THEN
-    RAISE EXCEPTION 'A single linked patient profile is required';
-  END IF;
-  SELECT id, clinic_id INTO v_patient_id, v_clinic_id
-    FROM public.patients WHERE auth_user_id = auth.uid();
-  v_symptoms := jsonb_build_object(
-    'screening_answers', _answers,
-    'requested_healthcare_professional', v_request
-  )::text;
-  INSERT INTO public.triage_records (
-    id, clinic_id, patient_id, symptoms, ai_summary,
-    priority_level, recommended_action, review_status
-  ) VALUES (
-    _submission_id, v_clinic_id, v_patient_id, v_symptoms,
-    'Structured preliminary screening completed. No AI diagnosis or clinical classification; qualified clinical review required.',
-    'Unclassified',
-    CASE WHEN v_request THEN
-      'Patient requested a healthcare professional. Human clinical review required.'
-    ELSE 'Human clinical review required. Patient did not request a healthcare professional.' END,
-    'pending review'
-  ) ON CONFLICT (id) DO NOTHING;
-  SELECT * INTO v_record FROM public.triage_records WHERE id = _submission_id;
-  IF v_record.patient_id IS DISTINCT FROM v_patient_id
-    OR v_record.clinic_id IS DISTINCT FROM v_clinic_id
-    OR v_record.symptoms IS DISTINCT FROM v_symptoms
-    OR v_record.priority_level IS DISTINCT FROM 'Unclassified' THEN
-    RAISE EXCEPTION 'Submission reference conflicts with an existing record';
-  END IF;
-  SELECT EXISTS (
-    SELECT 1 FROM public.notifications
-    WHERE clinic_id = v_clinic_id AND notification_type = 'triage_alert'
-      AND message LIKE '%' || _submission_id::text || '%'
-  ) INTO v_notification_created;
-  RETURN jsonb_build_object(
-    'id', v_record.id, 'submitted_at', v_record.created_at,
-    'requested_healthcare_professional', v_request,
-    'notification_created', v_notification_created
-  );
-END;
-$$;
-REVOKE ALL ON FUNCTION public.submit_carepulse_screening(uuid, jsonb) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.submit_carepulse_screening(uuid, jsonb) TO authenticated;
+**Database changes**
+- Audit patient grants, policies, triggers, and every registration/profile-edit path again before drafting SQL.
+- Remove patients’ ability to set or change `clinic_id`, `auth_user_id`, or patient identity through general profile updates. Keep self-service editing of appropriate contact/profile fields through narrow column grants and existing ownership checks.
+- Close the self-registration loophole: patients must not create a trusted clinic association by supplying an arbitrary clinic ID. Use clinic-authorised enrollment, checking the enrolling admin/receptionist’s membership in that clinic. Do not disable registration without a secure replacement path.
+- Use existing registration mechanisms if available; otherwise propose the smallest explicit enrollment change separately in the SQL review. Do not invent a new enrollment table or duplicate RPC.
+- Preserve existing patient records; report ambiguous associations for authorised correction rather than silently changing them.
+- Keep the submission RPC deriving both IDs from the single authenticated linked patient, never browser-supplied IDs. Consider locking that patient row during submission so a concurrent authorised transfer cannot produce an inconsistent association.
 
--- Preserve the existing notification automation and its failure tracking,
--- but do not label Unclassified screenings as AI clinical classifications.
-CREATE OR REPLACE FUNCTION public.carepulse_triage_submitted()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-DECLARE v_run_id uuid; v_emergency boolean; v_unclassified boolean;
-BEGIN
-  INSERT INTO public.automation_runs
-    (clinic_id, workflow_name, status, related_reference, trigger_key)
-  VALUES (NEW.clinic_id, 'Triage alert', 'pending', NEW.id::text,
-    'triage-submitted:' || NEW.id::text)
-  ON CONFLICT (trigger_key) DO NOTHING RETURNING id INTO v_run_id;
-  IF v_run_id IS NULL THEN RETURN NEW; END IF;
-  v_emergency := lower(trim(NEW.priority_level)) = 'emergency';
-  v_unclassified := NEW.priority_level = 'Unclassified';
-  BEGIN
-    INSERT INTO public.notifications
-      (clinic_id, title, message, notification_type, is_read)
-    VALUES (NEW.clinic_id,
-      CASE WHEN v_unclassified THEN 'Screening awaiting clinical review'
-        WHEN v_emergency THEN 'EMERGENCY — review triage now'
-        ELSE 'New triage submitted' END,
-      CASE WHEN v_unclassified THEN
-        'No clinical priority assigned. ' || coalesce(NEW.recommended_action, '')
-          || ' Triage record: ' || NEW.id::text
-        ELSE 'Priority: ' || NEW.priority_level
-          || '. AI-generated classification; clinical judgment is required. Triage record: '
-          || NEW.id::text END,
-      CASE WHEN v_emergency THEN 'triage_emergency' ELSE 'triage_alert' END, false);
-    UPDATE public.automation_runs SET status = 'success', completed_at = now()
-      WHERE id = v_run_id;
-  EXCEPTION WHEN OTHERS THEN
-    UPDATE public.automation_runs SET status = 'failed',
-      error_message = SQLSTATE || ': ' || SQLERRM, completed_at = now()
-      WHERE id = v_run_id;
-  END;
-  RETURN NEW;
-END;
-$$;
-```
+**Frontend changes**
+- Connect sign-in to the existing Supabase project and restore/validate the session. Keep sample conversations usable without representing them as clinic submissions.
+- An account without a clinic-approved patient association receives a clear enrollment message; no screening is falsely submitted.
+- Preserve existing legitimate profile editing and clinic registration features while preventing self-selected clinic reassignment.
 
-## Application wiring after approval
+## Step 2 — Connect chatbot completion to the existing RPC
 
-Use authenticated server functions with the existing generated client and bearer middleware. Save every completed screening with a stable submission ID to avoid duplicates on retries. Keep the existing completion panel, adding saving, confirmed success, failure, and retry states. Load received screenings in Clinic Review only for signed-in authorised staff, using existing row-level access rules; do not present local samples as received records. Preserve existing review actions and emergency guidance.
+**Database changes**
+- No new submission function or table. Preserve the existing ten-string validation, Unclassified priority, pending review status, ownership checks, atomic notification requirement, and idempotent UUID handling.
+- Reinspect the live function and grants; amend the existing function only if tests reveal a concrete security or consistency defect.
 
-## Validation and limitations
+**Frontend changes**
+- At completion with a Yes request, call the existing RPC with `_submission_id` set to the stable conversation UUID and `_answers` set to the ten answer strings. Preserve the current No branch: record the response locally without silently changing submission consent behaviour.
+- Send neither patient nor clinic IDs from the browser.
+- Use the existing completion panel for submitting, confirmed success, failure, and retry states. Prevent duplicate clicks; retries use the same UUID and answers.
+- Display success only after a valid database response confirms the matching record ID and `notification_created: true`.
+- On an explicit database failure, state that the clinic has not received the screening. For a lost response/timeout, state that delivery is unconfirmed, not definitely absent; resolve through an idempotent retry before claiming success or failure.
+- Update outdated messages saying Unclassified cannot be stored. Keep emergency guidance immediately available and never wait for submission to show it.
+- Session conversations remain temporary; only confirmed submissions persist in Supabase.
 
-Test answer validation, YES/NO request recording, ownership checks, duplicate prevention, Unclassified/pending review values, and separate notification confirmation. Verify the patient completion and clinic review flows using a fictional linked test patient and an authorised staff account only; never inspect real patient records for testing.
+## Step 3 — Connect Clinic Review to received screenings
 
-This externally connected project does not provide an authenticated browser test session. Full end-to-end validation and whether a fictional test record appears in the database remain unverified until a safe authorised test session is available. No database change or test record has been applied as part of this proposal.
+**Database changes**
+- Reuse `triage_records` and the existing ownership/membership read policies. Keep patient reads restricted to their own records and staff reads restricted to clinics where they hold authorised membership.
+- `clinic_members` has no active/inactive field; do not invent one. Membership removal revokes access. Recheck this schema before implementation.
+
+**Frontend changes**
+- Keep the Clinic Review layout and URL; protect real records with staff sign-in and server-validated membership.
+- Replace the received queue’s temporary source with authenticated, clinic-scoped database reads, with pagination, loading, empty, and error states in the existing layout.
+- Show stored answers, summary, professional-request flag, Unclassified priority, and actual review status. Parse stored answer payloads safely and preserve display of legacy records.
+- Keep local samples explicitly separate from received records. Do not delete existing sample or escalation features or present them as real saved work.
+- If a user belongs to multiple clinics, scope the queue to their selected authorised clinic. Never rely on the selector alone for security.
+
+## Step 4 — Make clinical review durable and attributable
+
+**Database changes**
+- Add one nullable `reviewed_at timestamptz` column to the existing `triage_records` table. Do not fabricate timestamps or reviewer identities for historical records.
+- Extend the existing review-protection trigger/function rather than create a duplicate. On the first valid transition to reviewed, require an authenticated doctor belonging to the record’s clinic, and set `reviewed_by = auth.uid()` and `reviewed_at` using database time in the same transaction.
+- Preserve admin/receptionist/doctor clinic-scoped viewing and appropriate administrative handling, but only a doctor may complete clinical review. An admin role alone is not evidence of clinical qualification; the clinic must assign doctor membership only to verified clinicians.
+- Tighten update policy checks so every role is restricted to its authorised review activity. Do not broaden general table writes or allow modification of patient identity, clinic association, original answers, summary, assigned priority, or creation time.
+- Prevent clients from forging review timestamps or overwriting completed review attribution. Repeated completion requests must not change the original review time or double-count a screening. Keep completed reviews final for this scope; a future reopening/history requirement needs a separate proposal.
+- Preserve emergency guidance and existing legacy priority values; these changes do not assign clinical urgency.
+
+**Frontend changes**
+- Save the existing review action to Supabase, refresh the queue only after confirmation, and show failures without marking the item reviewed locally.
+- Display the saved reviewer reference and review date/time in the existing details area. Resolve a name only through an already authorised source; do not broaden access to other users’ profiles just to obtain a label.
+- Keep reception/admin handling and escalation separate from completed clinical review. Preserve sample escalation as sample-only unless an existing authorised persistent escalation workflow is verified; do not falsely report a real escalation.
+
+## Step 5 — Add the weekly clinical review KPI
+
+**Database changes**
+- Count distinct `triage_records.id` where `review_status = reviewed`, `reviewed_by` is present, and `reviewed_at` falls in the selected week, scoped to the authorised clinic.
+- Use Monday 00:00 through the following Monday 00:00 in Africa/Lagos, with an inclusive start and exclusive end. This is the proposed reporting convention.
+- Use an authenticated exact-count query under RLS; do not download all records or depend on Supabase’s default 1,000-row limit. No KPI table or duplicate database function is needed.
+- Add a clinic/review-time index only if needed for measured query performance.
+- Historical reviews without trustworthy timestamps are excluded rather than backdated; disclose this limitation.
+
+**Frontend changes**
+- Add a compact “Reviewed this week” value in the existing Clinic Review summary, without redesigning the page. Update it after a confirmed review and keep it clinic-scoped.
+- Show the reporting week and distinguish unavailable counts from zero.
+
+## Step 6 — Verify with fictional data before reporting completion
+
+- Test authenticated patient A submitting ten strings; read back the saved answers, request flag, Unclassified priority, pending review status, notification, and successful automation run.
+- Test invalid arrays, anonymous callers, unlinked/ambiguous patient accounts, cross-patient reads, cross-clinic staff access, forged clinic association on registration/update, and unauthorised review attempts.
+- Test retries and concurrent duplicate submissions produce one record and one notification.
+- In an isolated test setup, force notification failure and verify the screening, notification, and workflow changes all roll back. Do not disrupt real notification delivery to test this.
+- Test authorised doctor review persists the actual reviewer and database timestamp; receptionist/admin-only completion and forged timestamps fail. Confirm repeated completion does not change attribution or inflate the KPI.
+- Test Monday/week-boundary cases in Lagos, clinic isolation, counts above 1,000 rows, and exclusion of samples/unattributed historical reviews.
+- Run regression tests and exercise patient submission → staff queue → saved clinical review → weekly count through the UI, then confirm results with read-only database checks.
+- External Supabase does not provide a managed browser test session here. Use authorised fictional test accounts through the app’s sign-in flow; never request service-role keys or claim authenticated testing passed without a usable session.
+
+## Technical implementation and approval boundaries
+
+- Reuse generated Supabase clients. App-internal operations use authenticated TanStack server functions with `requireSupabaseAuth`, the user-scoped `context.supabase`, and bearer middleware. The submission wrapper calls the existing Supabase RPC; ordinary reads/reviews do not use the service-role client.
+- Use protected Clinic Review loading and TanStack Query cache invalidation scoped by account and clinic; clear private data on sign-out/account changes.
+- All database changes must be presented as complete SQL for separate review before execution. Preserve RLS, narrow grants, safe `search_path = pg_catalog, pg_temp`, fully qualified references, and restricted function execution permissions.
+- Required schema addition: `triage_records.reviewed_at` only. Expected security changes: patient enrollment/update permissions, clinician-only completion policy, and extension of the existing review-protection trigger. No unrelated CarePulse table structures, clinical rules, or notification channels are changed.
+- Existing in-app notifications confirm creation of a clinic notification record, not delivery by email/SMS or proof that staff have read it.
+
+## Completion criteria
+
+A fictional linked patient can submit once, see truthful confirmation, and have the received screening appear only to authorised staff at that clinic. An authorised doctor can save a review with attributable identity and time, and the clinic’s weekly KPI increases exactly once. Security-negative tests pass, existing UI/features remain intact, and the final report states whether each test record and notification actually exists in Supabase.
