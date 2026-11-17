@@ -3,7 +3,9 @@
 - [x] Build sample clinic review and escalation view.
 - [x] Verify screening safety rules and mobile layout.
 - [x] Record YES requests locally, clarify ambiguous answers, and show truthful failure/non-submission states without assigning medical priority.
-- [ ] Save YES requests and show received screenings in the clinic dashboard. Blocked: minimal migration to support unclassified results was declined; existing priority field accepts only mild/moderate/emergency.
-- [ ] Complete authenticated screening submissions and staff-only Clinic Review without redesign; verify with fictional records after permission for the required unclassified value and safe submission operation.
+- [ ] Thursday deadline: reuse existing patient update guard and link_patient_account; close remaining direct self-registration bypass only through separately approved SQL.
+- [ ] Connect authenticated YES completion to the existing screening RPC, with confirmed saving and retry states.
+- [ ] Load real clinic-scoped screenings and save doctor reviews securely; review timestamp and doctor-only enforcement await separate SQL approval.
+- [ ] Add the weekly reviewed-screenings count and verify patient → clinic → doctor review → KPI with fictional accounts.
 - [ ] Connect AI screening. Blocked: clinically approved warning-sign protocol.
 - [ ] Enable production staff alerts and voice processing. Blocked: existing connection, verified staff recipients and clinical approval.

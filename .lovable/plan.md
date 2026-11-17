@@ -10,20 +10,18 @@ This is a proposal only. Do not execute migrations, create test records, or chan
 
 ## Verified starting point
 
-The live RPC and notification/review triggers already exist; reuse them rather than replay the older saved SQL. The RPC validates ten strings, derives patient/clinic IDs, saves Unclassified / pending review, and requires a notification. The chatbot and Clinic Review still use local samples. `reviewed_by` exists; `reviewed_at` does not. Current patient writes permit self-selected clinic registration/reassignment. The audit found zero screening records and triage notifications; authenticated end-to-end behaviour remains untested.
+The live screening RPC, notification/review triggers, patient update guard, and `link_patient_account()` already exist. Reuse them; do not replay the older SQL. The patient guard blocks non-staff changes to clinic, identity/link, email, and creation fields. Account linking requires a verified email and exactly one matching unlinked patient; execution is authenticated-only. The remaining bypass is direct patient self-registration: the authenticated INSERT grant and `patients_self_register` policy still allow a caller to supply a clinic ID. `reviewed_by` exists; `reviewed_at` does not, and current review policies allow admin/receptionist/doctor updates. The chatbot and Clinic Review still use local samples.
 
 ## Step 1 — Secure patient-to-clinic association
 
 **Database changes**
-- Audit patient grants, policies, triggers, and every registration/profile-edit path again before drafting SQL.
-- Remove patients’ ability to set or change `clinic_id`, `auth_user_id`, or patient identity through general profile updates. Keep self-service editing of appropriate contact/profile fields through narrow column grants and existing ownership checks.
-- Close the self-registration loophole: patients must not create a trusted clinic association by supplying an arbitrary clinic ID. Use clinic-authorised enrollment, checking the enrolling admin/receptionist’s membership in that clinic. Do not disable registration without a secure replacement path.
-- Use existing registration mechanisms if available; otherwise propose the smallest explicit enrollment change separately in the SQL review. Do not invent a new enrollment table or duplicate RPC.
-- Keep the submission RPC deriving both IDs from the single authenticated linked patient, never browser-supplied IDs. Consider locking that patient row during submission so a concurrent authorised transfer cannot produce an inconsistent association.
+- Preserve the existing patient update guard and account-linking function unchanged; no duplicate protection or enrollment function.
+- Present a separate minimal SQL proposal to remove arbitrary patient self-registration while retaining clinic-authorised enrollment of existing patients. Confirm the existing staff enrollment path before removing its access; do not silently delete or relink records.
+- Continue deriving patient/clinic IDs within the existing screening RPC.
 
 **Frontend changes**
 - Connect sign-in to the existing Supabase project and restore/validate the session. Keep sample conversations usable without representing them as clinic submissions.
-- Unlinked accounts receive an enrollment message; no false submission.
+- Unlinked accounts use the existing `link_patient_account()` after verified sign-in. Handle already linked, no match, multiple matches, and unverified email without accepting clinic IDs from the patient. No match requires clinic enrollment; no false submission.
 
 ## Step 2 — Connect chatbot completion to the existing RPC
 
@@ -93,3 +91,12 @@ Present complete SQL separately before execution. Keep narrow grants, RLS, quali
 ## Completion criteria
 
 A fictional linked patient can submit once, see truthful confirmation, and have the received screening appear only to authorised staff at that clinic. An authorised doctor can save a review with attributable identity and time, and the clinic’s weekly KPI increases exactly once. Security-negative tests pass, existing UI/features remain intact, and the final report states whether each test record and notification actually exists in Supabase.
+
+## Shortest safe path to Thursday, 19 November 2026
+
+1. Tuesday: wire authenticated sign-in/account linking, the existing submission RPC, confirmation/retry states, and the real clinic queue. These need no repeat of existing migrations.
+2. In parallel, present a separate small SQL patch for the residual self-registration bypass, `reviewed_at`, and extension of the existing review guard/policy to doctor-only completion with database-assigned reviewer/time. Do not execute it without approval.
+3. Wednesday: after SQL approval, connect durable doctor review and the exact weekly clinic-scoped count; test with fictional linked patient and doctor accounts, including access denials and duplicate retries.
+4. Thursday: demonstrate the complete saved workflow and verify the database record, notification, review attribution, and KPI. Fix regressions only; no redesign, new AI protocol, voice integration, new alert channels, or duplicate structures.
+
+If SQL approval or authorised fictional test sessions are unavailable, submission/queue wiring can proceed, but secure doctor completion and a trustworthy weekly KPI remain explicitly blocked. Do not substitute browser timestamps or UI-only role checks.
