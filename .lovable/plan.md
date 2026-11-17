@@ -10,12 +10,7 @@ This is a proposal only. Do not execute migrations, create test records, or chan
 
 ## Verified starting point
 
-- The live database already contains `submit_carepulse_screening(uuid, jsonb)`, the notification trigger, and review-protection trigger. Reuse them; do not replay the older saved SQL proposal.
-- The RPC validates ten strings, derives patient and clinic IDs, saves Unclassified / pending review, and requires a clinic notification before returning success.
-- The chatbot does not call it. Clinic Review and its review actions operate only on temporary sample data.
-- `reviewed_by` exists; `reviewed_at` does not. Current review rules permit a null reviewer and all three staff roles.
-- Patients can currently self-register against a clinic and update their clinic association. Deriving a clinic ID from this row is not sufficient until those write paths are secured.
-- The audit found zero triage records, triage notifications, and successful triage runs. These checks do not establish a working authenticated end-to-end flow.
+The live RPC and notification/review triggers already exist; reuse them rather than replay the older saved SQL. The RPC validates ten strings, derives patient/clinic IDs, saves Unclassified / pending review, and requires a notification. The chatbot and Clinic Review still use local samples. `reviewed_by` exists; `reviewed_at` does not. Current patient writes permit self-selected clinic registration/reassignment. The audit found zero screening records and triage notifications; authenticated end-to-end behaviour remains untested.
 
 ## Step 1 — Secure patient-to-clinic association
 
@@ -58,7 +53,7 @@ This is a proposal only. Do not execute migrations, create test records, or chan
 - Replace the received queue’s temporary source with authenticated, clinic-scoped database reads, with pagination, loading, empty, and error states in the existing layout.
 - Show stored answers, summary, professional-request flag, Unclassified priority, and actual review status. Parse stored answer payloads safely and preserve display of legacy records.
 - Keep local samples explicitly separate from received records. Do not delete existing sample or escalation features or present them as real saved work.
-- If a user belongs to multiple clinics, scope the queue to their selected authorised clinic. Never rely on the selector alone for security.
+- Scope multi-clinic staff views to a selected authorised clinic, enforcing access server-side.
 
 ## Step 4 — Make clinical review durable and attributable
 
@@ -88,24 +83,20 @@ This is a proposal only. Do not execute migrations, create test records, or chan
 - Add a compact “Reviewed this week” value in the existing Clinic Review summary, without redesigning the page. Update it after a confirmed review and keep it clinic-scoped.
 - Show the reporting week and distinguish unavailable counts from zero.
 
-## Step 6 — Verify with fictional data before reporting completion
+## Step 6 — Verify with fictional data
 
-- Test authenticated patient A submitting ten strings; read back the saved answers, request flag, Unclassified priority, pending review status, notification, and successful automation run.
-- Test invalid arrays, anonymous callers, unlinked/ambiguous patient accounts, cross-patient reads, cross-clinic staff access, forged clinic association on registration/update, and unauthorised review attempts.
-- Test retries and concurrent duplicate submissions produce one record and one notification.
-- In an isolated test setup, force notification failure and verify the screening, notification, and workflow changes all roll back. Do not disrupt real notification delivery to test this.
-- Test authorised doctor review persists the actual reviewer and database timestamp; receptionist/admin-only completion and forged timestamps fail. Confirm repeated completion does not change attribution or inflate the KPI.
-- Test Monday/week-boundary cases in Lagos, clinic isolation, counts above 1,000 rows, and exclusion of samples/unattributed historical reviews.
-- Run regression tests and exercise patient submission → staff queue → saved clinical review → weekly count through the UI, then confirm results with read-only database checks.
-- External Supabase does not provide a managed browser test session here. Use authorised fictional test accounts through the app’s sign-in flow; never request service-role keys or claim authenticated testing passed without a usable session.
+- Exercise patient submission → staff queue → saved doctor review → weekly count through the UI; confirm the record, answers, notification, attribution, and timestamp in Supabase.
+- Test ten-string validation, anonymous/unlinked/ambiguous callers, cross-patient reads, cross-clinic access, forged registration/clinic reassignment, and unauthorised reviews.
+- Verify retries/concurrent submissions create one screening and one notification. In an isolated test setup, force notification failure and confirm all associated writes roll back.
+- Reject forged reviewer/time values and admin/receptionist-only clinical completion. Repeated completion must not change attribution or double-count.
+- Test Lagos week boundaries, counts above 1,000 rows, clinic isolation, and historical/sample exclusions. Run existing regression tests.
+- This external Supabase connection does not provide managed authenticated browser testing. Use authorised fictional accounts through sign-in, never request service-role keys, and report any blocked checks honestly.
 
 ## Technical implementation and approval boundaries
 
-- Reuse generated Supabase clients. App-internal operations use authenticated TanStack server functions with `requireSupabaseAuth`, the user-scoped `context.supabase`, and bearer middleware. The submission wrapper calls the existing Supabase RPC; ordinary reads/reviews do not use the service-role client.
-- Use protected Clinic Review loading and TanStack Query cache invalidation scoped by account and clinic; clear private data on sign-out/account changes.
-- All database changes must be presented as complete SQL for separate review before execution. Preserve RLS, narrow grants, safe `search_path = pg_catalog, pg_temp`, fully qualified references, and restricted function execution permissions.
-- Required schema addition: `triage_records.reviewed_at` only. Expected security changes: patient enrollment/update permissions, clinician-only completion policy, and extension of the existing review-protection trigger. No unrelated CarePulse table structures, clinical rules, or notification channels are changed.
-- Existing in-app notifications confirm creation of a clinic notification record, not delivery by email/SMS or proof that staff have read it.
+Use authenticated TanStack server functions, the generated user-scoped Supabase client, existing RPC, and bearer middleware. Do not use service-role access for ordinary submission, queue reads, reviews, or KPI queries. Scope caches by account/clinic and clear private data on identity changes.
+
+Present complete SQL separately before execution. Keep narrow grants, RLS, qualified object references, restricted function execution, and safe search paths. Add only `triage_records.reviewed_at`; reuse existing functions/triggers. Existing notifications mean an in-app record was created, not email/SMS delivery or proof staff read it.
 
 ## Completion criteria
 
