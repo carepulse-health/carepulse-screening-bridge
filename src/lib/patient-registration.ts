@@ -65,7 +65,8 @@ export function signInErrorMessage(error: NonNullable<AuthError>): SignInProblem
   return { unconfirmed: false, message: "Sign-in failed. Please try again." };
 }
 
-// Email links (confirmation and password reset) must open a page patients can reach
+// Email links (confirmation and password reset) must open a page patients can reach.
+// Lovable-hosted copies (preview and published) also use the Vercel site.
 // from any device. Editor preview and local addresses are not publicly reachable,
 // so they fall back to the published CarePulse site on Vercel, which is the address
 // registered in Supabase's Site URL and Redirect URL settings.
@@ -74,7 +75,7 @@ export const PUBLIC_SITE_URL = "https://carepulse-screening-bridge.vercel.app";
 export function authRedirectBase(origin: string): string {
   try {
     const host = new URL(origin).hostname;
-    const privateHost = host === "localhost" || host === "127.0.0.1" || host.endsWith(".lovableproject.com")
+    const privateHost = host === "localhost" || host === "127.0.0.1" || host.endsWith(".lovableproject.com") || host.endsWith(".lovable.app")
       || /^(id-preview|preview)--/.test(host) || host.endsWith(".local");
     return privateHost ? PUBLIC_SITE_URL : origin.replace(/\/$/, "");
   } catch { return PUBLIC_SITE_URL; }

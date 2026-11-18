@@ -60,6 +60,7 @@ describe("Patient sign-in and email links", () => {
     expect(authRedirectBase("https://id-preview--b5aaae33-9011-41eb-9343-d3f4695a155c.lovable.app")).toBe(PUBLIC_SITE_URL);
     expect(authRedirectBase("http://localhost:8080")).toBe(PUBLIC_SITE_URL);
     expect(authRedirectBase("https://carepulse-screening-bridge.vercel.app")).toBe("https://carepulse-screening-bridge.vercel.app");
+    expect(authRedirectBase("https://carepulse-screening-bridge.lovable.app")).toBe(PUBLIC_SITE_URL);
   });
   it("explains an expired reset link", () => {
     expect(emailLinkError("#error=access_denied&error_code=otp_expired")).toMatch(/expired/);
