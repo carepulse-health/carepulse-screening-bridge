@@ -42,7 +42,7 @@ export function registrationOutcome({ error, hasSession, identityCount }: SignUp
 
 export function isValidEmail(email: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()); }
 
-export function resetRequestMessage(error: { message?: string; status?: number } | null): { ok: boolean; message: string } {
+export function resetRequestMessage(error: { message?: string | undefined; status?: number | undefined } | null): { ok: boolean; message: string } {
   if (!error) return { ok: true, message: "If an account exists for this email, a password reset link has been sent. Check your inbox." };
   const text = (error.message ?? "").toLowerCase();
   if (error.status === 429 || text.includes("rate")) return { ok: false, message: "Too many attempts. Please wait a few minutes and try again." };
