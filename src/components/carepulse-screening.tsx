@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
+import { submitScreening } from "@/lib/screening.functions";
+import { useCarePulseAuth } from "@/lib/carepulse-auth-context";
 import type { UIMessage } from "ai";
 import {
   ArrowRight,
@@ -48,6 +52,10 @@ function textMessage(role: "user" | "assistant", text: string): UIMessage {
 export function CarePulseScreening({ threadId }: { threadId?: string }) {
   const { threads, updateThread } = useCarePulseSession();
   const navigate = useNavigate();
+  const { user } = useCarePulseAuth();
+  const saveScreening = useServerFn(submitScreening);
+  const queryClient = useQueryClient();
+  const saving = useRef(false);
   const thread = threads.find((item) => item.id === threadId);
   const [input, setInput] = useState("");
   const [notice, setNotice] = useState("");
@@ -56,6 +64,23 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
   useEffect(() => {
     inputRef.current?.focus();
   }, [threadId, thread?.messages.length]);
+
+  async function deliver(current: ScreeningThread) {
+    if (saving.current || current.submissionState === "submitted") return;
+    if (!user) {
+      updateThread({ ...current, submissionState: "failed", submissionMessage: submissionUnavailable });
+      return;
+    }
+    saving.current = true;
+    updateThread({ ...current, submissionState: "submitting", submissionMessage: "Sending your screening…" });
+    try {
+      const result = await saveScreening({ data: { submissionId: current.id, answers: current.answers } });
+      updateThread({ ...current, submissionState: result.state, submissionMessage: result.message });
+      if (result.state === "submitted") void queryClient.invalidateQueries({ queryKey: ["clinic-screenings"] });
+    } catch {
+      updateThread({ ...current, submissionState: "unconfirmed", submissionMessage: "Delivery could not be confirmed. Retry safely or contact your clinic directly." });
+    } finally { saving.current = false; }
+  }
 
   function submit(text: string) {
     if (!text.trim() || thread?.outcome) return;
@@ -87,10 +112,10 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
     const completion = completionSubmission(answers);
     const response = step.finished
       ? completion.requested
-        ? `Thank you. You requested a healthcare professional. ${submissionUnavailable} No clinical priority has been assigned.`
+        ? "Thank you. You requested a healthcare professional. No clinical priority has been assigned; a clinician needs to review your answers."
         : "Thank you for sharing. You have not requested a healthcare professional, so this screening has not been submitted. No clinical priority has been assigned. If you feel seriously unwell, seek immediate medical attention."
       : `${answers.length === 1 ? "Thank you for sharing, Jamie. " : ""}${step.question}`;
-    updateThread({
+    const updated: ScreeningThread = {
       ...current,
       answers,
       messages: [
@@ -101,7 +126,9 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
       outcome: step.outcome,
       requestedHealthcareProfessional: completion.requested,
       submissionState: completion.state,
-    });
+    };
+    updateThread(updated);
+    if (step.finished && completion.requested) void deliver(updated);
     setInput("");
     if (!threadId) void navigate({ to: "/chat/$threadId", params: { threadId: id } });
     inputRef.current?.focus();
@@ -245,16 +272,25 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
                 <strong>
                   {thread?.outcome === "Emergency guidance"
                     ? "Seek emergency help now"
-                    : thread?.submissionState === "failed"
-                      ? "Not submitted · Your clinic has not received it"
-                      : "Screening complete · Not submitted"}
+                    : thread?.submissionState === "submitted"
+                      ? "Screening submitted · Awaiting clinical review"
+                      : thread?.submissionState === "submitting"
+                        ? "Submitting your screening…"
+                        : thread?.submissionState === "unconfirmed"
+                          ? "Delivery not confirmed"
+                          : thread?.submissionState === "failed"
+                            ? "Not submitted · Your clinic has not received it"
+                            : "Screening complete · Not submitted"}
                 </strong>
                 <p>
-                  {thread?.requestedHealthcareProfessional
-                    ? "Healthcare professional requested. Please contact your clinic directly."
+                  {thread?.outcome === "Emergency guidance"
+                    ? emergencyGuidance
+                    : thread?.requestedHealthcareProfessional
+                    ? thread.submissionMessage ?? "Healthcare professional requested. Please contact your clinic directly."
                     : "No clinical priority assigned. No clinic notification sent."}
                 </p>
               </div>
+              {thread?.requestedHealthcareProfessional && ["failed", "unconfirmed"].includes(thread.submissionState ?? "") && <Button variant="outline" disabled={!user} onClick={() => void deliver(thread)}>Retry submission</Button>}
             </div>
           )}
           <div className="composer-area">
@@ -305,7 +341,7 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
               </PromptInputFooter>
             </PromptInput>
             <p className="composer-disclaimer">
-              <ShieldCheck size={12} /> Sample information only · Chats disappear when you reload
+              <ShieldCheck size={12} /> Fictional data only · Unsaved chats disappear on reload
             </p>
             {notice && (
               <div className="inline-notice" role="status">
@@ -430,9 +466,9 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
               patients.
             </p>
             <p>
-              Chats are held only in this session and disappear on reload. This screening cannot be
-              submitted until the clinic can accept unclassified results. No clinic notifications
-              are sent by this sample workflow.
+              Chats are held only in this session and disappear on reload. With a linked account,
+              completed Yes requests are saved to your clinic for human review. Confirmed submission
+              includes an in-app clinic notification, not an email or SMS.
             </p>
             <Button onClick={() => setShowSafety(false)}>
               <CheckCircle2 /> Understood

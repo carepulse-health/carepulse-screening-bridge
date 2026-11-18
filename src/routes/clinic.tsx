@@ -10,6 +10,8 @@ import {
 import { CarePulseShell } from "@/components/carepulse-shell";
 import { useCarePulseSession } from "@/lib/carepulse-session-context";
 import { Button } from "@/components/ui/button";
+import { CarePulseClinicQueue } from "@/components/carepulse-clinic-queue";
+import { useCarePulseAuth } from "@/lib/carepulse-auth-context";
 
 export const Route = createFileRoute("/clinic")({
   head: () => ({
@@ -18,12 +20,12 @@ export const Route = createFileRoute("/clinic")({
       {
         name: "description",
         content:
-          "Sample CarePulse clinic review workspace for preliminary screening and escalation.",
+          "CarePulse clinic screening queue and qualified clinical review.",
       },
       { property: "og:title", content: "Clinic review | CarePulse" },
       {
         property: "og:description",
-        content: "Review sample screening submissions and escalation states.",
+        content: "Review received clinic screenings with secure clinical oversight.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -32,6 +34,11 @@ export const Route = createFileRoute("/clinic")({
   component: ClinicReview,
 });
 function ClinicReview() {
+  const { user, ready } = useCarePulseAuth();
+  if (!ready) return <CarePulseShell clinic><p role="status">Checking your account…</p></CarePulseShell>;
+  return user ? <CarePulseClinicQueue /> : <SampleClinicReview />;
+}
+function SampleClinicReview() {
   const { threads } = useCarePulseSession();
   const [reviewed, setReviewed] = useState<string[]>([]);
   const [escalated, setEscalated] = useState<string[]>([]);
@@ -113,9 +120,8 @@ function ClinicReview() {
       <div className="clinical-caution">
         <ShieldCheck size={20} />
         <p>
-          These are unsaved sample screenings, not received clinic records. The current clinic
-          settings require a clinical priority, so unclassified submissions cannot be saved. Review
-          actions below are local only.
+          These are unsaved sample screenings, not received clinic records. Sign in to view your
+          clinic’s received screenings. Review actions below are local only.
         </p>
       </div>
       {record && (

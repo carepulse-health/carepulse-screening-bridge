@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type { UIMessage } from "ai";
+import type { SubmissionState } from "./screening-submission";
 
 export type ScreeningThread = {
   id: string;
@@ -8,7 +9,8 @@ export type ScreeningThread = {
   answers: string[];
   outcome: "Emergency guidance" | "Needs review" | null;
   requestedHealthcareProfessional?: boolean;
-  submissionState?: "not_requested" | "submitting" | "submitted" | "failed";
+  submissionState?: SubmissionState;
+  submissionMessage?: string;
 };
 
 type Session = {

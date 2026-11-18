@@ -5,7 +5,7 @@ describe("Screening completion requests", () => {
   it("records an explicit YES request without claiming it was submitted", () => {
     expect(completionSubmission([...Array(9).fill("Sample answer"), "YES"])).toEqual({
       requested: true,
-      state: "failed",
+      state: "submitting",
     });
   });
   it("does not request submission when the patient answers NO", () => {

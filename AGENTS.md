@@ -39,3 +39,6 @@ use the editor.
 - Until an existing data connection and clinician-approved protocol are verified, use a deterministic sample screening sequence, explicit emergency guidance, and human-review outcomes; do not infer medical priorities or send real notifications.
 - Reuse the connected project's generated data clients and existing schema when available; never provision a replacement project for the existing CarePulse data.
 - Never write unvalidated screening completions using legacy clinical priority values; if the database cannot accept an unclassified result, show a failed-submission state and keep local samples distinct from received clinic records.
+- Call existing screening/linking RPCs through authenticated server functions and attach the session bearer centrally; patient and clinic identity must never come from form input.
+- Keep the public sample clinic page separate from its authenticated queue, scope private query caches by account and clinic, and clear them on identity changes to prevent cross-account display.
+- Disable durable review and weekly reporting until the database supports protected reviewer/time attribution; never substitute browser timestamps or local sample reviews.

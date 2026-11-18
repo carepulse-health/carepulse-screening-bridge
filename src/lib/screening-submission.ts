@@ -1,4 +1,4 @@
-export type SubmissionState = "not_requested" | "submitting" | "submitted" | "failed";
+export type SubmissionState = "not_requested" | "submitting" | "submitted" | "failed" | "unconfirmed";
 
 export function wantsHealthcareProfessional(answer: string): boolean | null {
   const normalized = answer.trim().toLowerCase();
@@ -8,13 +8,13 @@ export function wantsHealthcareProfessional(answer: string): boolean | null {
 }
 
 export const submissionUnavailable =
-  "Your clinic has not received this screening. CarePulse cannot save an unclassified screening with the current clinic settings. Please contact your clinic directly to request a healthcare professional.";
+  "Your clinic has not received this screening. Sign in with your clinic-registered account to submit it, or contact your clinic directly.";
 
 export function completionSubmission(answers: string[]) {
   if (answers.length !== 10) return { requested: false, state: "not_requested" as SubmissionState };
   const requested = wantsHealthcareProfessional(answers[9] ?? "") === true;
   return {
     requested,
-    state: requested ? ("failed" as SubmissionState) : ("not_requested" as SubmissionState),
+    state: requested ? ("submitting" as SubmissionState) : ("not_requested" as SubmissionState),
   };
 }

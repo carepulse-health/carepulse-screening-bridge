@@ -3,6 +3,22 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { confirmedSubmission, lagosWeek, screeningInput, screeningPayload } from "./screening-workflow";
 
+export const linkPatientAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: patients, error } = await context.supabase.from("patients").select("id").eq("auth_user_id", context.userId);
+    if (error) return { linked: false, message: "Could not check your patient account. Please try again." };
+    if (patients.length === 1) return { linked: true, message: "Your patient account is linked to your clinic." };
+    if (patients.length > 1) return { linked: false, message: "More than one patient record is linked. Please contact your clinic." };
+    const { error: linkError } = await context.supabase.rpc("link_patient_account");
+    if (linkError) return { linked: false, message: "Verify your account email and ask your clinic to register one matching patient record. Your clinic association was not changed." };
+    // Re-read ownership instead of trusting a transport-only success.
+    const linked = await context.supabase.from("patients").select("id").eq("auth_user_id", context.userId);
+    return linked.data?.length === 1 && !linked.error
+      ? { linked: true, message: "Your patient account is linked to your clinic." }
+      : { linked: false, message: "Patient linking could not be confirmed. Please contact your clinic." };
+  });
+
 export const submitScreening = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => screeningInput.parse(input))
@@ -13,6 +29,7 @@ export const submitScreening = createServerFn({ method: "POST" })
       const { error } = await context.supabase.rpc("link_patient_account");
       if (error) return { state: "failed" as const, message: "Your clinic has not received this screening. Verify your account email and ask your clinic to link your patient profile." };
     }
+    if (patients.length > 1) return { state: "failed" as const, message: "Your clinic has not received this screening. Ask your clinic to resolve multiple linked patient records." };
     const { data: saved, error } = await context.supabase.rpc("submit_carepulse_screening", {
       _submission_id: data.submissionId, _answers: data.answers,
     });

@@ -16,6 +16,8 @@ import {
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { useCarePulseSession } from "@/lib/carepulse-session-context";
+import { CarePulseAccount } from "./carepulse-account";
+import { useCarePulseAuth } from "@/lib/carepulse-auth-context";
 
 export function CarePulseShell({
   children,
@@ -26,6 +28,7 @@ export function CarePulseShell({
 }) {
   const navigate = useNavigate();
   const { threads } = useCarePulseSession();
+  const { user } = useCarePulseAuth();
   const newScreening = () =>
     navigate({ to: "/chat/$threadId", params: { threadId: crypto.randomUUID() } });
   return (
@@ -81,8 +84,8 @@ export function CarePulseShell({
           <div className="sample-profile">
             <span className="profile-avatar">JD</span>
             <div>
-              <strong>Jamie Davis</strong>
-              <p>Sample patient</p>
+              <strong>{user ? "Signed in" : "Jamie Davis"}</strong>
+              <p>{user ? "Clinic account" : "Sample patient"}</p>
             </div>
             <ChevronDown size={16} />
           </div>
@@ -97,8 +100,9 @@ export function CarePulseShell({
           </div>
           <div className="header-right">
             <span className="sample-label">
-              <span /> Sample workspace
+              <span /> {user ? "Fictional data testing" : "Sample workspace"}
             </span>
+            <CarePulseAccount />
             <span className="header-avatar">JD</span>
           </div>
         </header>

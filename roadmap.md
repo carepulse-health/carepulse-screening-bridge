@@ -4,7 +4,7 @@
 - [x] Verify screening safety rules and mobile layout.
 - [x] Record YES requests locally, clarify ambiguous answers, and show truthful failure/non-submission states without assigning medical priority.
 - [ ] Thursday deadline: reuse existing patient update guard and link_patient_account; close remaining direct self-registration bypass only through separately approved SQL.
-- [ ] Connect authenticated YES completion to the existing screening RPC, with confirmed saving and retry states.
+- [ ] Continue interrupted work: inspect existing helpers, connect sign-in/account linking, authenticated YES completion, confirmed saving and retry states.
 - [ ] Load real clinic-scoped screenings and save doctor reviews securely; review timestamp and doctor-only enforcement await separate SQL approval.
 - [ ] Add the weekly reviewed-screenings count and verify patient → clinic → doctor review → KPI with fictional accounts.
 - [ ] Connect AI screening. Blocked: clinically approved warning-sign protocol.
