@@ -67,8 +67,9 @@ export function signInErrorMessage(error: NonNullable<AuthError>): SignInProblem
 
 // Email links (confirmation and password reset) must open a page patients can reach
 // from any device. Editor preview and local addresses are not publicly reachable,
-// so they fall back to the published CarePulse site.
-export const PUBLIC_SITE_URL = "https://carepulse-screening-bridge.lovable.app";
+// so they fall back to the published CarePulse site on Vercel, which is the address
+// registered in Supabase's Site URL and Redirect URL settings.
+export const PUBLIC_SITE_URL = "https://carepulse-screening-bridge.vercel.app";
 
 export function authRedirectBase(origin: string): string {
   try {
