@@ -2,15 +2,16 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { LogIn, LogOut, Link2, UserPlus } from "lucide-react";
+import { LogIn, LogOut, Link2, UserPlus, KeyRound } from "lucide-react";
+import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCarePulseAuth } from "@/lib/carepulse-auth-context";
 import { supabase } from "@/integrations/supabase/client";
 import { linkPatientAccount } from "@/lib/screening.functions";
-import { MIN_PASSWORD_LENGTH, checkRegistrationInput, registrationOutcome } from "@/lib/patient-registration";
+import { MIN_PASSWORD_LENGTH, checkRegistrationInput, registrationOutcome, isValidEmail, resetRequestMessage } from "@/lib/patient-registration";
 
-type Mode = "sign_in" | "register";
+type Mode = "sign_in" | "register" | "forgot";
 
 export function CarePulseAccount() {
   const { user, ready } = useCarePulseAuth();
@@ -71,6 +72,17 @@ export function CarePulseAccount() {
     finally { setBusy(false); }
   }
 
+  async function requestReset(event: React.FormEvent) {
+    event.preventDefault();
+    if (!isValidEmail(email)) { say("Enter a valid email address.", "error"); return; }
+    setBusy(true); say("");
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/reset-password` });
+      const r = resetRequestMessage(error); say(r.message, r.ok ? "success" : "error");
+    } catch { say("We couldn't send the reset email. Please try again.", "error"); }
+    finally { setBusy(false); }
+  }
+
   async function link() {
     setBusy(true); say("");
     try { const result = await linkAccount(); say(result.message, result.linked ? "success" : "error"); }
@@ -88,7 +100,7 @@ export function CarePulseAccount() {
     await navigate({ to: "/", replace: true });
   }
 
-  const title = user ? "Your account" : mode === "register" ? "Create Patient Account" : "Sign in to CarePulse";
+  const title = user ? "Your account" : mode === "register" ? "Create Patient Account" : mode === "forgot" ? "Reset your password" : "Sign in to CarePulse";
 
   return <>
     <Button variant="ghost" size="sm" disabled={!ready || busy} onClick={() => { say(""); setOpen(!open); }}>
@@ -105,14 +117,20 @@ export function CarePulseAccount() {
           </div>
         </> : mode === "sign_in" ? <form onSubmit={signIn} className="grid gap-4">
           <label className="grid gap-2">Email<Input type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} /></label>
-          <label className="grid gap-2">Password<Input type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} /></label>
+          <label className="grid gap-2">Password<PasswordInput label="Password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} /></label>
+          <button type="button" className="justify-self-start text-sm font-medium text-primary underline-offset-4 hover:underline" onClick={() => switchMode("forgot")}>Forgot Password?</button>
           <p>Use your existing clinic-registered account. Contact your clinic if you do not have one.</p>
           <Button type="submit" disabled={busy}><LogIn /> {busy ? "Signing in…" : "Sign in"}</Button>
           <Button type="button" variant="outline" disabled={busy} onClick={() => switchMode("register")}><UserPlus /> Create Patient Account</Button>
+        </form> : mode === "forgot" ? <form onSubmit={requestReset} className="grid gap-4">
+          <label className="grid gap-2">Email<Input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} /></label>
+          <p>Enter your account email and we'll send you a link to choose a new password.</p>
+          <Button type="submit" disabled={busy}><KeyRound /> {busy ? "Sending…" : "Send reset link"}</Button>
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => switchMode("sign_in")}>Back to sign in</Button>
         </form> : <form onSubmit={register} className="grid gap-4">
           <label className="grid gap-2">Email<Input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} /></label>
-          <label className="grid gap-2">Password<Input type="password" autoComplete="new-password" required minLength={MIN_PASSWORD_LENGTH} value={password} onChange={e => setPassword(e.target.value)} /></label>
-          <label className="grid gap-2">Confirm password<Input type="password" autoComplete="new-password" required minLength={MIN_PASSWORD_LENGTH} value={confirm} onChange={e => setConfirm(e.target.value)} /></label>
+          <label className="grid gap-2">Password<PasswordInput label="Password" autoComplete="new-password" required minLength={MIN_PASSWORD_LENGTH} value={password} onChange={e => setPassword(e.target.value)} /></label>
+          <label className="grid gap-2">Confirm password<PasswordInput label="Confirm password" autoComplete="new-password" required minLength={MIN_PASSWORD_LENGTH} value={confirm} onChange={e => setConfirm(e.target.value)} /></label>
           <p>Use the same email your clinic registered for you, so your account connects to your existing patient record.</p>
           <Button type="submit" disabled={busy}><UserPlus /> {busy ? "Creating account…" : "Create Patient Account"}</Button>
           <Button type="button" variant="ghost" disabled={busy} onClick={() => switchMode("sign_in")}>Already have an account? Sign in</Button>

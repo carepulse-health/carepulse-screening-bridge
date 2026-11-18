@@ -42,3 +42,4 @@ use the editor.
 - Call existing screening/linking RPCs through authenticated server functions and attach the session bearer centrally; patient and clinic identity must never come from form input.
 - Keep the public sample clinic page separate from its authenticated queue, scope private query caches by account and clinic, and clear them on identity changes to prevent cross-account display.
 - Disable durable review and weekly reporting until the database supports protected reviewer/time attribution; never substitute browser timestamps or local sample reviews.
+- Password reset uses the auth provider's built-in email link landing on the public /reset-password route; no custom reset tokens or tables. Why: keeps one authentication system.

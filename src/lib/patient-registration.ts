@@ -39,3 +39,12 @@ export function registrationOutcome({ error, hasSession, identityCount }: SignUp
   if (!hasSession) return { kind: "confirm_email", message: "Account created. Check your email to confirm it, then sign in here and choose “Link patient account” to connect your clinic record." };
   return { kind: "signed_in" };
 }
+
+export function isValidEmail(email: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()); }
+
+export function resetRequestMessage(error: { message?: string; status?: number } | null): { ok: boolean; message: string } {
+  if (!error) return { ok: true, message: "If an account exists for this email, a password reset link has been sent. Check your inbox." };
+  const text = (error.message ?? "").toLowerCase();
+  if (error.status === 429 || text.includes("rate")) return { ok: false, message: "Too many attempts. Please wait a few minutes and try again." };
+  return { ok: false, message: "We couldn't send the reset email. Please try again." };
+}

@@ -24,3 +24,18 @@ describe("Patient account registration", () => {
     expect(registrationOutcome({ error: null, hasSession: true, identityCount: 1 })).toEqual({ kind: "signed_in" });
   });
 });
+
+import { resetRequestMessage, isValidEmail } from "@/lib/patient-registration";
+describe("Password recovery", () => {
+  it("reports success only when no error is returned", () => {
+    expect(resetRequestMessage(null).ok).toBe(true);
+    expect(resetRequestMessage({ message: "boom" }).ok).toBe(false);
+  });
+  it("explains rate limits", () => {
+    expect(resetRequestMessage({ status: 429 }).message).toMatch(/Too many/);
+  });
+  it("validates the recovery email", () => {
+    expect(isValidEmail("ada")).toBe(false);
+    expect(isValidEmail(" ada@example.com ")).toBe(true);
+  });
+});
