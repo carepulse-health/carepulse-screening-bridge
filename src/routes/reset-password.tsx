@@ -5,7 +5,7 @@ import { CarePulseShell } from "@/components/carepulse-shell";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/password-input";
 import { supabase } from "@/integrations/supabase/client";
-import { checkRegistrationInput, MIN_PASSWORD_LENGTH } from "@/lib/patient-registration";
+import { checkRegistrationInput, emailLinkError, MIN_PASSWORD_LENGTH } from "@/lib/patient-registration";
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({
@@ -28,8 +28,10 @@ function ResetPassword() {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   useEffect(() => {
+    setLinkError(emailLinkError(window.location.hash, window.location.search));
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY" || session) setReady(true);
     });
@@ -52,7 +54,7 @@ function ResetPassword() {
   return <CarePulseShell>
     <section className="safety-dialog" style={{ margin: "40px auto" }}>
       <div className="dialog-heading"><h1 id="reset-title">Reset your password</h1></div>
-      {!ready && !done ? <p role="status">Open this page from the reset link in your email. If the link has expired, request a new one from Sign in → Forgot Password?.</p>
+      {!ready && !done ? <p role={linkError ? "alert" : "status"} style={linkError ? { color: "var(--destructive)" } : undefined}>{linkError ?? "Open this page from the reset link in your email. If the link has expired, request a new one from Sign in → Forgot Password?."}</p>
       : done ? null : <form onSubmit={submit} className="grid gap-4">
         <label className="grid gap-2">New password<PasswordInput label="New password" autoComplete="new-password" required minLength={MIN_PASSWORD_LENGTH} value={password} onChange={e => setPassword(e.target.value)} /></label>
         <label className="grid gap-2">Confirm new password<PasswordInput label="Confirm new password" autoComplete="new-password" required minLength={MIN_PASSWORD_LENGTH} value={confirm} onChange={e => setConfirm(e.target.value)} /></label>

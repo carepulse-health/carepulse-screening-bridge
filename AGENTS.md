@@ -43,3 +43,5 @@ use the editor.
 - Keep the public sample clinic page separate from its authenticated queue, scope private query caches by account and clinic, and clear them on identity changes to prevent cross-account display.
 - Disable durable review and weekly reporting until the database supports protected reviewer/time attribution; never substitute browser timestamps or local sample reviews.
 - Password reset uses the auth provider's built-in email link landing on the public /reset-password route; no custom reset tokens or tables. Why: keeps one authentication system.
+- Auth email links (sign-up confirmation, password reset) target the published site whenever the current origin is an editor preview or local host. Why: preview addresses sit behind editor login and cannot be opened from a patient's email.
+- Patient accounts are linked to their clinic patient record automatically after any sign-in via the existing linkPatientAccount function; clinic-member accounts are skipped. Why: no duplicate records and unchanged staff sign-in.
