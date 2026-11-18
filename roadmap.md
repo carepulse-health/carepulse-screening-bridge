@@ -9,3 +9,4 @@
 - [ ] Add the weekly reviewed-screenings count and verify patient → clinic → doctor review → KPI with fictional accounts.
 - [ ] Connect AI screening. Blocked: clinically approved warning-sign protocol.
 - [ ] Enable production staff alerts and voice processing. Blocked: existing connection, verified staff recipients and clinical approval.
+- [x] Add a "Create Patient Account" option to the sign-in window that links new accounts to the existing clinic patient record via link_patient_account().
