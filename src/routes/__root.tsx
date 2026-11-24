@@ -8,10 +8,8 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
-import type { User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
-import { CarePulseAuthContext } from "@/lib/carepulse-auth-context";
+import { useEffect, type ReactNode } from "react";
+import { CarePulseAuthProvider } from "@/components/carepulse-auth-provider";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -131,38 +129,15 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const router = useRouter();
-  const [auth, setAuth] = useState<{ user: User | null; ready: boolean }>({ user: null, ready: false });
-  useEffect(() => {
-    let alive = true;
-    let generation = 0;
-    async function validate() {
-      const current = ++generation;
-      try {
-        const { data, error } = await supabase.auth.getUser();
-        if (alive && current === generation) setAuth({ user: error ? null : data.user, ready: true });
-      } catch { if (alive && current === generation) setAuth({ user: null, ready: true }); }
-    }
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(event => {
-      if (!["SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"].includes(event)) return;
-      // Never await Supabase calls inside its auth callback (the auth lock is held).
-      if (event === "SIGNED_OUT") { generation++; setAuth({ user: null, ready: true }); }
-      else setTimeout(() => { if (alive) void validate(); }, 0);
-      void queryClient.cancelQueries().then(() => queryClient.clear());
-      void router.invalidate();
-    });
-    void validate();
-    return () => { alive = false; subscription.unsubscribe(); };
-  }, [queryClient, router]);
 
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <CarePulseAuthContext.Provider value={auth}>
+      <CarePulseAuthProvider>
       <CarePulseSession>
         <Outlet />
       </CarePulseSession>
-      </CarePulseAuthContext.Provider>
+      </CarePulseAuthProvider>
     </QueryClientProvider>
   );
 }

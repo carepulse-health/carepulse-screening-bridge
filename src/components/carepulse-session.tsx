@@ -5,12 +5,16 @@ import { CarePulseSessionContext, type ScreeningThread } from "@/lib/carepulse-s
 export function CarePulseSession({ children }: { children: ReactNode }) {
   const [threads, setThreads] = useState<ScreeningThread[]>([]);
   const { user } = useCarePulseAuth();
-  const previousUser = useRef<string | null>(null);
+  const previousUser = useRef<string | null | undefined>(undefined);
+  const owner = user?.id ?? null;
+  const latestOwner = useRef(owner);
+  latestOwner.current = owner;
   useEffect(() => {
-    if (previousUser.current && previousUser.current !== user?.id) setThreads([]);
-    previousUser.current = user?.id ?? null;
+    if (previousUser.current !== undefined && previousUser.current !== owner) setThreads([]);
+    previousUser.current = owner;
   }, [user?.id]);
   function updateThread(thread: ScreeningThread) {
+    if (owner !== latestOwner.current) return;
     setThreads((previous) =>
       previous.some((item) => item.id === thread.id)
         ? previous.map((item) => (item.id === thread.id ? thread : item))

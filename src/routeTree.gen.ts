@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClinicRouteImport } from './routes/clinic'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ChatThreadIdRouteImport } from './routes/chat.$threadId'
+import { Route as ApiPublicAuthHandoffRouteImport } from './routes/api/public/auth-handoff'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,18 +35,25 @@ const ChatThreadIdRoute = ChatThreadIdRouteImport.update({
   path: '/chat/$threadId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAuthHandoffRoute = ApiPublicAuthHandoffRouteImport.update({
+  id: '/api/public/auth-handoff',
+  path: '/api/public/auth-handoff',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/clinic': typeof ClinicRoute
   '/reset-password': typeof ResetPasswordRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
+  '/api/public/auth-handoff': typeof ApiPublicAuthHandoffRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/clinic': typeof ClinicRoute
   '/reset-password': typeof ResetPasswordRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
+  '/api/public/auth-handoff': typeof ApiPublicAuthHandoffRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +61,30 @@ export interface FileRoutesById {
   '/clinic': typeof ClinicRoute
   '/reset-password': typeof ResetPasswordRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
+  '/api/public/auth-handoff': typeof ApiPublicAuthHandoffRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/clinic' | '/reset-password' | '/chat/$threadId'
+  fullPaths:
+    | '/'
+    | '/clinic'
+    | '/reset-password'
+    | '/chat/$threadId'
+    | '/api/public/auth-handoff'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/clinic' | '/reset-password' | '/chat/$threadId'
-  id: '__root__' | '/' | '/clinic' | '/reset-password' | '/chat/$threadId'
+  to:
+    | '/'
+    | '/clinic'
+    | '/reset-password'
+    | '/chat/$threadId'
+    | '/api/public/auth-handoff'
+  id:
+    | '__root__'
+    | '/'
+    | '/clinic'
+    | '/reset-password'
+    | '/chat/$threadId'
+    | '/api/public/auth-handoff'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +92,7 @@ export interface RootRouteChildren {
   ClinicRoute: typeof ClinicRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ChatThreadIdRoute: typeof ChatThreadIdRoute
+  ApiPublicAuthHandoffRoute: typeof ApiPublicAuthHandoffRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +125,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatThreadIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/auth-handoff': {
+      id: '/api/public/auth-handoff'
+      path: '/api/public/auth-handoff'
+      fullPath: '/api/public/auth-handoff'
+      preLoaderRoute: typeof ApiPublicAuthHandoffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +140,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClinicRoute: ClinicRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ChatThreadIdRoute: ChatThreadIdRoute,
+  ApiPublicAuthHandoffRoute: ApiPublicAuthHandoffRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

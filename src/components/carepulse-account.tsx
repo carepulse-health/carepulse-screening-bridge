@@ -20,7 +20,7 @@ async function isClinicStaff(userId: string) {
 }
 
 export function CarePulseAccount() {
-  const { user, ready } = useCarePulseAuth();
+  const { user, ready, embedded, patient, disconnect } = useCarePulseAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const linkAccount = useServerFn(linkPatientAccount);
@@ -42,6 +42,7 @@ export function CarePulseAccount() {
   linkRef.current = linkAccount;
   const userId = user?.id ?? null;
   useEffect(() => {
+    if (embedded) { setLinkStatus({ state: patient ? "linked" : "idle", message: patient ? "Your patient account is linked to your clinic." : "" }); return; }
     if (!userId) { linkedFor.current = null; setLinkStatus({ state: "idle", message: "" }); return; }
     if (linkedFor.current === userId) return;
     linkedFor.current = userId;
@@ -57,7 +58,7 @@ export function CarePulseAccount() {
       }
     })();
     return () => { alive = false; if (linkedFor.current === userId) linkedFor.current = null; };
-  }, [userId]);
+  }, [userId, embedded, patient]);
 
   function say(text: string, kind: "info" | "error" | "success" = "info") { setMessage(text); setTone(kind); }
   function switchMode(next: Mode) { setMode(next); setPassword(""); setConfirm(""); setUnconfirmed(false); say(""); }
@@ -135,6 +136,7 @@ export function CarePulseAccount() {
   }
 
   async function signOut() {
+    if (embedded) { disconnect?.(); setOpen(false); return; }
     setBusy(true);
     await queryClient.cancelQueries(); queryClient.clear();
     const { error } = await supabase.auth.signOut();
@@ -148,17 +150,17 @@ export function CarePulseAccount() {
 
   return <>
     <Button variant="ghost" size="sm" disabled={!ready || busy} onClick={() => { say(""); setOpen(!open); }}>
-      <LogIn size={16} /> {user ? "Account" : "Sign in"}
+      <LogIn size={16} /> {user ? "Account" : embedded ? "Patient app" : "Sign in"}
     </Button>
     {open && <div className="modal-backdrop" onClick={() => setOpen(false)}>
       <section className="safety-dialog" role="dialog" aria-modal="true" aria-labelledby="account-title" onClick={e => e.stopPropagation()}>
         <div className="dialog-heading"><h2 id="account-title">{title}</h2><Button variant="ghost" onClick={() => setOpen(false)}>Close</Button></div>
-        {user ? <>
+        {embedded && !user ? <p>Sign in through your patient app, then reopen the chatbot.</p> : user ? <>
           <p>{user.email}</p>
           {linkStatus.state !== "idle" && linkStatus.state !== "staff" && <p role={linkStatus.state === "unlinked" ? "alert" : "status"} style={linkStatus.state === "unlinked" ? { color: "var(--destructive)" } : linkStatus.state === "linked" ? { color: "var(--primary)" } : undefined}>{linkStatus.message}</p>}
           <div className="review-actions">
             {linkStatus.state !== "staff" && linkStatus.state !== "linked" && <Button disabled={busy || linkStatus.state === "checking"} onClick={link}><Link2 /> Link patient account</Button>}
-            <Button variant="outline" disabled={busy} onClick={signOut}><LogOut /> Sign out</Button>
+            <Button variant="outline" disabled={busy} onClick={signOut}><LogOut /> {embedded ? "Disconnect" : "Sign out"}</Button>
           </div>
         </> : mode === "sign_in" ? <form onSubmit={signIn} className="grid gap-4">
           <label className="grid gap-2">Email<Input type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} /></label>

@@ -28,7 +28,9 @@ export function CarePulseShell({
 }) {
   const navigate = useNavigate();
   const { threads } = useCarePulseSession();
-  const { user } = useCarePulseAuth();
+  const { user, patient, embedded, ready } = useCarePulseAuth();
+  const name = patient?.fullName ?? (user ? "Signed in" : embedded ? "Patient account" : "Jamie Davis");
+  const initials = patient?.fullName.split(/\s+/).filter(Boolean).map(part => part[0]).slice(0, 2).join("").toUpperCase() ?? (user || embedded ? "" : "JD");
   const newScreening = () =>
     navigate({ to: "/chat/$threadId", params: { threadId: crypto.randomUUID() } });
   return (
@@ -82,10 +84,10 @@ export function CarePulseShell({
             </div>
           </div>
           <div className="sample-profile">
-            <span className="profile-avatar">JD</span>
+            <span className="profile-avatar">{initials}</span>
             <div>
-              <strong>{user ? "Signed in" : "Jamie Davis"}</strong>
-              <p>{user ? "Clinic account" : "Sample patient"}</p>
+              <strong>{name}</strong>
+              <p>{!ready ? "Verifying account…" : patient ? "Linked patient" : user ? "Clinic account" : embedded ? "Not connected" : "Sample patient"}</p>
             </div>
             <ChevronDown size={16} />
           </div>
@@ -103,7 +105,7 @@ export function CarePulseShell({
               <span /> {user ? "Fictional data testing" : "Sample workspace"}
             </span>
             <CarePulseAccount />
-            <span className="header-avatar">JD</span>
+            <span className="header-avatar">{initials}</span>
           </div>
         </header>
         <main className="page-content">{children}</main>

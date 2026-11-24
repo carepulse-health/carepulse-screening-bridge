@@ -32,6 +32,8 @@ use the editor.
 <!-- LOVABLE:END -->
 
 ## CarePulse architecture
+- Embedded authentication uses server-encrypted two-minute tickets in memory, strict configured parent origins, and the existing Supabase verifier after decryption; refresh tokens stay in the parent and standalone sessions are never borrowed by an embed.
+- Parent bridge code exchanges the parent's bearer for a challenge-bound encrypted ticket through the public handoff endpoint; server checks current patient ownership and clinic on every ticket-authenticated call so RLS and clinic changes remain authoritative.
 
 - Keep unsaved conversation data in the root session provider and conversation IDs in TanStack page URLs; no browser storage is used because chats must not persist.
 - Define session context and its consumer hook in a non-component module, separate from the refreshable provider, so hot updates cannot split provider and consumer context identities.

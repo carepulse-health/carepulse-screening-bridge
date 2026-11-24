@@ -1,4 +1,6 @@
 # CarePulse roadmap
+- [ ] Implement encrypted, short-lived iframe authentication with verified patient identity and submission gating.
+- [ ] Connect the mobile app bridge and verify real embedded submissions. Blocked: mobile app origin/project access.
 - [x] Build sample-only patient screening and session conversation navigation.
 - [x] Build sample clinic review and escalation view.
 - [x] Verify screening safety rules and mobile layout.

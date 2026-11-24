@@ -43,8 +43,6 @@ import {
 import { CarePulseShell, PriorityLegend } from "./carepulse-shell";
 import { useCarePulseSession, type ScreeningThread } from "@/lib/carepulse-session-context";
 
-const intro =
-  "Hello, Jamie. I’m here to help you take the next step with your health. What is your main health concern?";
 function textMessage(role: "user" | "assistant", text: string): UIMessage {
   return { id: crypto.randomUUID(), role, parts: [{ type: "text", text }] };
 }
@@ -52,7 +50,9 @@ function textMessage(role: "user" | "assistant", text: string): UIMessage {
 export function CarePulseScreening({ threadId }: { threadId?: string }) {
   const { threads, updateThread } = useCarePulseSession();
   const navigate = useNavigate();
-  const { user } = useCarePulseAuth();
+  const { user, patient, canSubmit, ready, embedded, message: authMessage } = useCarePulseAuth();
+  const firstName = patient?.fullName.trim().split(/\s+/)[0] ?? (!user && !embedded ? "Jamie" : "there");
+  const intro = `Hello, ${firstName}. I’m here to help you take the next step with your health. What is your main health concern?`;
   const saveScreening = useServerFn(submitScreening);
   const queryClient = useQueryClient();
   const saving = useRef(false);
@@ -67,7 +67,7 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
 
   async function deliver(current: ScreeningThread) {
     if (saving.current || current.submissionState === "submitted") return;
-    if (!user) {
+    if (!user || !ready || !canSubmit) {
       updateThread({ ...current, submissionState: "failed", submissionMessage: submissionUnavailable });
       return;
     }
@@ -114,7 +114,7 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
       ? completion.requested
         ? "Thank you. You requested a healthcare professional. No clinical priority has been assigned; a clinician needs to review your answers."
         : "Thank you for sharing. You have not requested a healthcare professional, so this screening has not been submitted. No clinical priority has been assigned. If you feel seriously unwell, seek immediate medical attention."
-      : `${answers.length === 1 ? "Thank you for sharing, Jamie. " : ""}${step.question}`;
+      : `${answers.length === 1 ? `Thank you for sharing, ${firstName}. ` : ""}${step.question}`;
     const updated: ScreeningThread = {
       ...current,
       answers,
@@ -242,7 +242,7 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
               </span>
               <span className="welcome-eyebrow">A LITTLE CHECK-IN, JUST FOR YOU</span>
               <h2>
-                Hi Jamie, how are you
+                Hi {firstName}, how are you
                 <br />
                 feeling today?
               </h2>
@@ -290,10 +290,11 @@ export function CarePulseScreening({ threadId }: { threadId?: string }) {
                     : "No clinical priority assigned. No clinic notification sent."}
                 </p>
               </div>
-              {thread?.requestedHealthcareProfessional && ["failed", "unconfirmed"].includes(thread.submissionState ?? "") && <Button variant="outline" disabled={!user} onClick={() => void deliver(thread)}>Retry submission</Button>}
+              {thread?.requestedHealthcareProfessional && ["failed", "unconfirmed"].includes(thread.submissionState ?? "") && <Button variant="outline" disabled={!ready || !canSubmit} onClick={() => void deliver(thread)}>Retry submission</Button>}
             </div>
           )}
           <div className="composer-area">
+            {authMessage && <p role="status">{authMessage}</p>}
             {count === 9 && !complete && (
               <div className="concern-options">
                 <Button variant="outline" onClick={() => submit("Yes")}>

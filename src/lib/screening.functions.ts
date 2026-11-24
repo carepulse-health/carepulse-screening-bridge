@@ -1,10 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { resolveCarePulseHandoff } from "./carepulse-handoff-middleware";
 import { confirmedSubmission, lagosWeek, screeningInput, screeningPayload } from "./screening-workflow";
 
 export const linkPatientAccount = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([resolveCarePulseHandoff, requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { data: patients, error } = await context.supabase.from("patients").select("id").eq("auth_user_id", context.userId);
     if (error) return { linked: false, message: "Could not check your patient account. Please try again." };
@@ -20,7 +21,7 @@ export const linkPatientAccount = createServerFn({ method: "POST" })
   });
 
 export const submitScreening = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([resolveCarePulseHandoff, requireSupabaseAuth])
   .inputValidator((input: unknown) => screeningInput.parse(input))
   .handler(async ({ data, context }) => {
     const { data: patients, error: profileError } = await context.supabase.from("patients").select("id").eq("auth_user_id", context.userId);
@@ -44,7 +45,7 @@ export const submitScreening = createServerFn({ method: "POST" })
 
 const clinicInput = z.object({ clinicId: z.string().uuid().optional(), page: z.number().int().min(0).default(0) });
 export const getClinicScreenings = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([resolveCarePulseHandoff, requireSupabaseAuth])
   .inputValidator((input: unknown) => clinicInput.parse(input))
   .handler(async ({ data, context }) => {
     const { data: memberships, error: membershipError } = await context.supabase.from("clinic_members").select("clinic_id, role, clinics(name)").eq("user_id", context.userId).in("role", ["admin", "receptionist", "doctor"]);
@@ -74,7 +75,7 @@ export const getClinicScreenings = createServerFn({ method: "POST" })
   });
 
 export const saveClinicalReview = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([resolveCarePulseHandoff, requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid(), clinicId: z.string().uuid(), action: z.string().trim().min(1).max(5000) }).parse(input))
   .handler(async ({ data, context }) => {
     const { data: membership, error } = await context.supabase.from("clinic_members").select("id").eq("user_id", context.userId).eq("clinic_id", data.clinicId).eq("role", "doctor").maybeSingle();
